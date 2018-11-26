@@ -2,7 +2,7 @@ import tensorflow as tf
 
 
 def main():
-    pass
+    print('hello world')
 
 
 if __name__ is '__main__':
