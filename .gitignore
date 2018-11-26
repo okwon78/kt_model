@@ -1,3 +1,6 @@
 .vscode/
 .idea/
 *.pyc
+model/log/
+model/data/
+model/nohup.out
