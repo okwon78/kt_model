@@ -20,22 +20,20 @@ CSV_COLUMN_NAMES = ['Index',
                     'Rainfall',
                     'Label']
 
-SPECIES = ['Setosa', 'Versicolor', 'Virginica']
-
 
 def load_data(y_name='Label'):
     """Returns the iris dataset as (train_x, train_y), (test_x, test_y)."""
     train_path = ALARM_DATA_FILE
     test_path = ALARM_DATA_FILE
 
-    train = pd.read_csv(train_path, names=CSV_COLUMN_NAMES, header=0)
+    data = pd.read_csv(train_path, names=CSV_COLUMN_NAMES, header=0)
+    data['Label'] = (data['Label'] != 'y').astype(int)
 
-    train_y = train.pop(y_name)
-    train_x = train
+    train_y = data.pop(y_name)
+    train_x = data[['Latitude', 'AlarmLevel', 'Longitude', 'TypeID', 'Criteria', 'Position', 'Wave', 'Humidity', 'Rainfall', ]]
 
-    test = pd.read_csv(test_path, names=CSV_COLUMN_NAMES, header=0)
-    test_y = test.pop(y_name)
-    test_x = test
+    test_x = train_x
+    test_y = train_y
 
     return (train_x, train_y), (test_x, test_y)
 

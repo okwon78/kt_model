@@ -38,47 +38,54 @@ def main(argv):
     for key in train_x.keys():
         my_feature_columns.append(tf.feature_column.numeric_column(key=key))
 
+    my_checkpointing_config = tf.estimator.RunConfig(
+        save_checkpoints_secs=2*60,  # Save checkpoints every 20 minutes.
+        keep_checkpoint_max=100,  # Retain the 10 most recent checkpoints.
+    )
+
     # Build 2 hidden layer DNN with 10, 10 units respectively.
     classifier = tf.estimator.DNNClassifier(
         feature_columns=my_feature_columns,
         # Two hidden layers of 10 nodes each.
         hidden_units=[10, 10],
-        # The model must choose between 3 classes.
-        n_classes=3,
-        model_dir='models/iris')
+        n_classes=2,
+        model_dir='models/alarm',
+        config=my_checkpointing_config)
 
-    # Train the Model.
-    classifier.train(
-        input_fn=lambda: alarm_data.train_input_fn(train_x, train_y, args.batch_size), steps=args.train_steps)
 
-    # Evaluate the model.
-    eval_result = classifier.evaluate(
-        input_fn=lambda: alarm_data.eval_input_fn(test_x, test_y, args.batch_size))
+    while True:
+        # Train the Model.
+        classifier.train(
+            input_fn=lambda: alarm_data.train_input_fn(train_x, train_y, args.batch_size), steps=args.batch_size)
 
-    print('\nTest set accuracy: {accuracy:0.3f}\n'.format(**eval_result))
+        # Evaluate the model.
+        eval_result = classifier.evaluate(
+            input_fn=lambda: alarm_data.eval_input_fn(test_x, test_y, args.batch_size))
+
+        print('\nTest set accuracy: {accuracy:0.3f}\n'.format(**eval_result))
 
     # Generate predictions from the model
-    expected = ['Setosa', 'Versicolor', 'Virginica']
-    predict_x = {
-        'SepalLength': [5.1, 5.9, 6.9],
-        'SepalWidth': [3.3, 3.0, 3.1],
-        'PetalLength': [1.7, 4.2, 5.4],
-        'PetalWidth': [0.5, 1.5, 2.1],
-    }
-
-    predictions = classifier.predict(
-        input_fn=lambda: alarm_data.eval_input_fn(predict_x,
-                                                 labels=None,
-                                                 batch_size=3))
-
-    template = ('\nPrediction is "{}" ({:.1f}%), expected "{}"')
-
-    for pred_dict, expec in zip(predictions, expected):
-        class_id = pred_dict['class_ids'][0]
-        probability = pred_dict['probabilities'][class_id]
-
-        print(template.format(alarm_data.SPECIES[class_id],
-                              100 * probability, expec))
+    # expected = ['Setosa', 'Versicolor', 'Virginica']
+    # predict_x = {
+    #     'SepalLength': [5.1, 5.9, 6.9],
+    #     'SepalWidth': [3.3, 3.0, 3.1],
+    #     'PetalLength': [1.7, 4.2, 5.4],
+    #     'PetalWidth': [0.5, 1.5, 2.1],
+    # }
+    #
+    # predictions = classifier.predict(
+    #     input_fn=lambda: alarm_data.eval_input_fn(predict_x,
+    #                                              labels=None,
+    #                                              batch_size=3))
+    #
+    # template = ('\nPrediction is "{}" ({:.1f}%), expected "{}"')
+    #
+    # for pred_dict, expec in zip(predictions, expected):
+    #     class_id = pred_dict['class_ids'][0]
+    #     probability = pred_dict['probabilities'][class_id]
+    #
+    #     print(template.format(alarm_data.SPECIES[class_id],
+    #                           100 * probability, expec))
 
 
 if __name__ == '__main__':
