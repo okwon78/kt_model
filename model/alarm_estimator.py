@@ -39,7 +39,7 @@ def main(argv):
         my_feature_columns.append(tf.feature_column.numeric_column(key=key))
 
     my_checkpointing_config = tf.estimator.RunConfig(
-        save_checkpoints_secs=2*60,  # Save checkpoints every 20 minutes.
+        save_checkpoints_secs=2 * 60,  # Save checkpoints every 20 minutes.
         keep_checkpoint_max=100,  # Retain the 10 most recent checkpoints.
     )
 
@@ -48,10 +48,9 @@ def main(argv):
         feature_columns=my_feature_columns,
         # Two hidden layers of 10 nodes each.
         hidden_units=[10, 10],
-        n_classes=2,
+        n_classes=3,
         model_dir='models/alarm',
         config=my_checkpointing_config)
-
 
     while True:
         # Train the Model.

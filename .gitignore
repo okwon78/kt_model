@@ -5,3 +5,6 @@ model/log/
 model/data/
 model/nohup.out
 model/models/
+*.h5
+*.json
+*.log
