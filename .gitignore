@@ -8,3 +8,4 @@ model/models/
 *.h5
 *.json
 *.log
+logs/

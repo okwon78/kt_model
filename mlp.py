@@ -3,8 +3,13 @@ import numpy as np
 import json
 from pathlib import Path
 
+from tensorflow.python.keras.callbacks import TensorBoard
+
+from trainingCallback import TrainingCallback
+
+
 class MLPModel:
-    def __init__(self, filename='model.h5', batch_size=20, epochs=200, verbose=0):
+    def __init__(self, train_new=True, filename='model.h5', batch_size=20, epochs=200, verbose=0):
         self._filename = filename
         self._batch_size = batch_size
         self._epoches = epochs
@@ -23,10 +28,11 @@ class MLPModel:
         ])
 
         self._model.compile(optimizer='adam',
-                      loss='sparse_categorical_crossentropy',
-                      metrics=['accuracy'])
+                            loss='sparse_categorical_crossentropy',
+                            metrics=['accuracy'])
 
-        self.load_weight()
+        if train_new:
+            self.load_weight()
 
     def getData(self):
         (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
@@ -41,6 +47,7 @@ class MLPModel:
 
     def __sample_generator(self, x_train, y_train, batch_size):
 
+        i = 0
         while True:
             x_batch = np.ones(shape=(batch_size, 28, 28))
             y_batch = np.ones(shape=(batch_size, 1))
@@ -51,16 +58,34 @@ class MLPModel:
                 num = np.random.randint(0, total_size)
                 x_batch[idx] = x_train[num]
                 y_batch[idx] = y_train[num]
-
+            # print(f"[{i}]generator called")
+            i += 1
             yield x_batch, y_batch
 
     def train(self, epochs=1000, eval=100):
+        batch_size = 10
         x_train, y_train, x_test, y_test = self.getData()
 
-        gnerator = self.__sample_generator(x_train, y_train, 10)
+        gnerator = self.__sample_generator(x_train, y_train, batch_size)
+        # tensorboard = TensorBoard(log_dir='./logs', histogram_freq=0,
+        #                           write_graph=True, write_images=False)
+        steps_per_epoch = len(x_train) / batch_size
+
+        print("batch size: ", batch_size)
+        print("steps_per_epoch: ", steps_per_epoch)
+
+        trainingCallback = TrainingCallback('./logs')
 
         for i in range(epochs):
-            self._model.fit_generator(gnerator, steps_per_epoch=10, verbose=0)
+            history = self._model.fit_generator(gnerator,
+                                                steps_per_epoch=3,
+                                                epochs=5,
+                                                verbose=0,
+                                                workers=1,
+                                                use_multiprocessing=False,
+                                                callbacks=[trainingCallback])
+
+            # print(f"[{i}] loss: ", history.history['loss'], "accuracy: ", history.history['accuracy'])
 
             if (i % eval) == 0:
                 results = self._model.evaluate(x_test, y_test, batch_size=128)
@@ -98,14 +123,14 @@ class MLPModel:
 
 
 if __name__ == '__main__':
+    m = MLPModel(train_new=False)
 
-    m = MLPModel()
-    x_train, y_train, x_test, y_test = m.getData()
-    prediction = m.serv(x_test)
-
-    for i in range(20):
-        print('prediction: ', prediction[i])
-        print('Y: ', y_test[i])
+    # x_train, y_train, x_test, y_test = m.getData()
+    # prediction = m.serv(x_test)
+    #
+    # for i in range(20):
+    #     print('prediction: ', prediction[i])
+    #     print('Y: ', y_test[i])
 
     # status = m.load_status()
     # print('epoch: ', status['epoch'])
@@ -114,4 +139,4 @@ if __name__ == '__main__':
 
     # print(m.summary())
 
-    # m.train()
+    m.train()
