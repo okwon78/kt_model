@@ -3,8 +3,6 @@ import numpy as np
 import json
 from pathlib import Path
 
-from tensorflow.python.keras.callbacks import TensorBoard
-
 from trainingCallback import TrainingCallback
 
 
@@ -102,8 +100,9 @@ class MLPModel:
 
                 self.save_weight()
 
-    def serv(self, data):
-        return self._model.predict_classes(data)
+    def serv(self):
+        return # self._model.predict_classes(data)
+
 
     def load_weight(self):
         weights = Path(self._filename)
@@ -113,10 +112,14 @@ class MLPModel:
     def save_weight(self):
         self._model.save_weights(self._filename)
 
-    def load_status(self):
-        with open('status.json', 'r') as f:
-            status = json.load(f)
-        return status
+    @staticmethod
+    def load_status():
+        try:
+            with open('status.json', 'r') as f:
+                status = json.load(f)
+            return status
+        except:
+            return None
 
     def summary(self):
         return self._model.summary()

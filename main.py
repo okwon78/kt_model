@@ -1,6 +1,6 @@
 from multiprocessing import Process
 from os import path
-from flask import Flask
+from flask import Flask, jsonify, request
 import logging
 
 from mlp import MLPModel
@@ -14,8 +14,12 @@ def train_proc(epochs, eval):
 
 def serv_proc():
     model = MLPModel()
-    # model.serv()
+    model.serv()
     pass
+
+
+train_process = None
+serv_process = None
 
 
 def get_api_server(db_client):
@@ -28,36 +32,75 @@ def get_api_server(db_client):
         'version': version
     }
 
-    train_proc = None
-    serv_proc = None
-
     @app.route("/train", methods=['POST'])
     def train():
         logging.debug("train request")
 
-        if train_proc is not None:
-            train_proc.stop()
-        process = Process(target=train_proc, args=(1000, 100))
-        process.start()
+        epochs = request.json['epoch']
+        eval = request.json['eval']
 
-        return "train"
+        global train_process
 
-    @app.route("/train/progress")
+        try:
+            if train_process is not None and train_process.is_alive():
+                train_process.terminate()
+            train_process = Process(target=train_proc, args=(int(epochs), int(eval)))
+            train_process.start()
+
+            response = {
+                'status': 1,
+                'message': 'train started'
+            }
+
+        except Exception as e:
+            response = {
+                'status': 0,
+                'message': e
+            }
+
+        return jsonify(response)
+
+    @app.route("/train/progress", methods=['POST'])
     def train_progress():
         logging.debug("train progress request")
-        return "train progress"
+        response = MLPModel.load_status()
+
+        if response is None:
+            response = {
+                'epoch': 0,
+                'loss': str(0),
+                'acc': str(0)
+            }
+        else:
+            logging.debug(response['epoch'])
+            logging.debug(response['loss'])
+            logging.debug(response['acc'])
+        return jsonify(response)
 
     @app.route("/serv")
     def serv():
-
         logging.debug("serv request")
 
-        if serv_proc is not None:
-            serv_proc.stop()
-        process = Process(target=serv_proc, args=(1000, 100))
-        process.start()
+        global serv_process
 
-        return "serv"
+        try:
+            if serv_process is not None and serv_process.is_alive():
+                serv_process.terminate()
+            serv_process = Process(target=serv_proc, args=(1000, 100))
+            serv_process.start()
+
+            response = {
+                'status': 1,
+                'message': 'serv started'
+            }
+
+        except Exception as e:
+            response = {
+                'status': 0,
+                'message': e
+            }
+
+        return jsonify(response)
 
     @app.route("/serv/progress")
     def serv_progress():
@@ -73,7 +116,7 @@ def main():
     model_save_path = path.join(path.dirname(path.abspath(__file__)), 'model_save')
 
     api_server = get_api_server(db_client=DBManager())
-    api_server.run(host='0.0.0.0', debug=True)
+    api_server.run(host='0.0.0.0', debug=False)
 
 
 if __name__ == '__main__':
