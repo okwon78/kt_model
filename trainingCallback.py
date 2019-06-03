@@ -12,8 +12,6 @@ class TrainingCallback(keras.callbacks.Callback):
         shutil.rmtree(log_dir)
         self.train_summary_writer = tf.summary.create_file_writer(log_dir)
 
-        print("TrainingCallback")
-
     def set_params(self, params):
         self.params = params
 

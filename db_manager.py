@@ -1,5 +1,6 @@
 import pymssql
 import numpy as np
+import os
 
 
 class Record:
@@ -31,19 +32,16 @@ class DBManager:
     def close(self):
         self._conn.close()
 
-    def init(self):
+    def init(self, dl_id):
+
         cursor = self._cursor
 
-        cursor.execute("""
-                SELECT min(DL_HIST_ID) FROM DL_ALARM
-                """)
-
+        cursor.execute(f"SELECT min(DL_HIST_ID) FROM DL_ALARM WHERE DL_ID = {dl_id}")
         self._min = cursor.fetchone()[0]
-        cursor.execute("""
-                SELECT max(DL_HIST_ID) FROM DL_ALARM
-                """)
 
+        cursor.execute(f"SELECT max(DL_HIST_ID) FROM DL_ALARM WHERE DL_ID = {dl_id}")
         self._max = cursor.fetchone()[0]
+
         self._total = self._max - self._min + 1
         self._train_min = self._min + min(self._total * 0.2, 2000)
         self._train_max = self._max
@@ -97,7 +95,7 @@ class DBManager:
                     # print(data, label)
 
             except Exception as e:
-                print(e)
+                print("validation_data: ", e)
                 return None, None
 
             return self._x_validation, self._y_validation
@@ -112,12 +110,26 @@ class DBManager:
                 cursor.execute(
                     f"SELECT TEMPERATURE,HUMIDITY,RAIN,SNOW,VISIBILITY,TIDE,WAVE_HEIGHT,LABELING FROM DL_ALARM WHERE DL_HIST_ID = {index}")
                 row = cursor.fetchone()
+
+                if row is None:
+                    return None, None
+
                 data, label = self.to_array(row)
                 self._cache[index] = Record(data, label)
                 # print(row)
                 # print(data, label)
             except Exception as e:
-                print(e)
+                print("get_train_data: ", e)
                 return None, None
 
             return data, label
+
+    def set_dl_info_update(self, dl_id, epoch):
+        cursor = self._cursor
+        cursor.execute(f"exec RMOSREPORT_DL_UPD_DLINFO_COUNT {dl_id}, {epoch}")
+        self._conn.commit()
+
+    def set_dl_info_complete(self, dl_id, epoch):
+        cursor = self._cursor
+        cursor.execute(f"exec RMOSREPORT_DL_UPD_DLINFO_STATUS {dl_id}, {epoch}")
+        self._conn.commit()

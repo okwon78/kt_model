@@ -1,13 +1,40 @@
-from tensorflow import keras
+import datetime
+
+
 import numpy as np
 import json
-from pathlib import Path
+import os
 
+from pathlib import Path
+from tensorflow import keras
 from tensorflow.python.keras.layers import Dense
 
 from db_manager import DBManager
 from trainingCallback import TrainingCallback
 import tensorflow.keras.backend as K
+
+
+def _y_true(y_true, y_pred):
+    return y_true
+
+
+def _y_pred(y_true, y_pred):
+    return y_pred
+
+
+def _c1(y_true, y_pred):
+    c1 = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    return c1
+
+
+def _c2(y_true, y_pred):
+    c2 = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    return c2
+
+
+def _c3(y_true, y_pred):
+    c3 = K.sum(K.round(K.clip(y_true, 0, 1)))
+    return c3
 
 
 def f1_score(y_true, y_pred):
@@ -34,15 +61,11 @@ def f1_score(y_true, y_pred):
 def recall(y_true, y_pred):
     # Count positive samples.
     c1 = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-    c2 = K.sum(K.round(K.clip(y_pred, 0, 1)))
     c3 = K.sum(K.round(K.clip(y_true, 0, 1)))
 
     # If there are no true samples, fix the F1 score at 0.
     if c3 == 0:
         return 0
-
-    # How many selected items are relevant?
-    precision = c1 / c2
 
     # How many relevant items are selected?
     recall = c1 / c3
@@ -53,24 +76,26 @@ def recall(y_true, y_pred):
 class MLPModel:
 
     def __init__(self, train_new=True, filename='model.h5', batch_size=20, epochs=200, verbose=0):
+
         self._filename = filename
         self._batch_size = batch_size
         self._epoches = epochs
         self._verbose = verbose
 
         self._model = keras.models.Sequential()
-        self._model.add(Dense(10, input_dim=7, kernel_initializer='normal', activation='relu'))
-        self._model.add(Dense(10, input_dim=10, kernel_initializer='normal', activation='relu'))
-        self._model.add(Dense(10, input_dim=10, kernel_initializer='normal', activation='relu'))
-        self._model.add(Dense(1, kernel_initializer='normal', activation='sigmoid'))
-        self._model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=['accuracy', f1_score, recall])
+        self._model.add(Dense(5, input_dim=7, kernel_initializer='normal', activation='relu'))
+        self._model.add(Dense(5, input_dim=5, kernel_initializer='normal', activation='relu'))
+        self._model.add(Dense(5, input_dim=5, kernel_initializer='normal', activation='relu'))
+        self._model.add(Dense(1, input_dim=5, kernel_initializer='normal', activation='sigmoid'))
+        self._model.compile(loss='binary_crossentropy', optimizer='adam',
+                            metrics=['accuracy', f1_score, recall, _c1, _c2, _c3, _y_true, _y_pred])
 
         if train_new:
             self.load_weight()
 
-    def __sample_generator(self, batch_size):
+    def __sample_generator(self, batch_size, dl_id):
         dbManager = DBManager()
-        dbManager.init()
+        dbManager.init(dl_id)
 
         while True:
             x_batch = np.ones(shape=(batch_size, 7))
@@ -102,57 +127,69 @@ class MLPModel:
 
             yield x_batch, y_batch
 
-    def train(self, epochs=1000, eval=100):
-        batch_size = 100
-        dbManager = DBManager()
-        dbManager.init()
+    def train(self, epochs=100, eval=10, dl_id=0):
+        # train_start_timestamp = datetime.datetime.now()
+        try:
+            batch_size = 100
+            dbManager = DBManager()
+            dbManager.init(dl_id)
 
-        steps_per_epoch = dbManager.get_steps(batch_size)
+            steps_per_epoch = dbManager.get_steps(batch_size)
 
-        print("batch size: ", batch_size)
-        print("steps_per_epoch: ", steps_per_epoch)
+            print("batch size: ", batch_size)
+            print("steps_per_epoch: ", steps_per_epoch)
 
-        trainingCallback = TrainingCallback('./logs')
-        x_test, y_test = dbManager.validation_data()
+            trainingCallback = TrainingCallback('./logs')
+            x_test, y_test = dbManager.validation_data()
 
-        dbManager.close()
+            for i in range(epochs):
+                generator = self.__sample_generator(batch_size, dl_id)
+                _ = self._model.fit_generator(generator,
+                                              steps_per_epoch=5,
+                                              epochs=1,
+                                              verbose=0,
+                                              workers=1,
+                                              use_multiprocessing=False,
+                                              callbacks=[trainingCallback])
 
-        for i in range(epochs):
-            generator = self.__sample_generator(batch_size)
-            _ = self._model.fit_generator(generator,
-                                          steps_per_epoch=steps_per_epoch / 3,
-                                          epochs=3,
-                                          verbose=0,
-                                          workers=1,
-                                          use_multiprocessing=False,
-                                          callbacks=[trainingCallback])
+                print(f"[train {i}] loss: ", _.history['loss'], "accuracy: ", _.history['accuracy'], "f1_score",
+                      _.history['f1_score'], "recall", _.history['recall'], 'c1:', _.history['_c1'], 'c2:',
+                      _.history['_c2'], 'c3:', _.history['_c3'], '_y_pred:', _.history['_y_pred'], '_y_true:',
+                      _.history['_y_true'])
 
-            print(f"[train {i}] loss: ", _.history['loss'], "accuracy: ", _.history['accuracy'])
+                if (i % eval) == 0 and i > 0:
+                    results = self._model.evaluate(x_test, y_test, batch_size=128)
+                    print(f'[eval {i}]', 'loss:', results[0], 'accuracy:', results[1], 'f1_score', results[2], 'recall',
+                          results[3])
+                    dbManager.set_dl_info_update(dl_id, i)
+                    status = {
+                        'epoch': i,
+                        'loss': str(results[0]),
+                        'acc': str(results[1])
+                    }
 
-            if (i % eval) == 0:
-                results = self._model.evaluate(x_test, y_test, batch_size=128)
-                print(f'[eval {i}] test loss, test acc:', results)
+                    with open('status.json', 'w') as f:
+                        json.dump(status, f)
 
-                status = {
-                    'epoch': i,
-                    'loss': str(results[0]),
-                    'acc': str(results[1])
-                }
+                    self.save_weight()
 
-                with open('status.json', 'w') as f:
-                    json.dump(status, f)
-
-                self.save_weight()
+            dbManager.set_dl_info_complete(dl_id, i)
+        finally:
+            self.save_weight()
+            dbManager.close()
 
     def serv(self):
         return  # self._model.predict_classes(data)
 
     def load_weight(self):
-        weights = Path(self._filename)
-        if weights.exists():
+        weights_file = Path(self._filename)
+        if weights_file.exists():
             self._model.load_weights(self._filename)
 
     def save_weight(self):
+        weights_file = Path(self._filename)
+        if weights_file.exists():
+            os.remove(weights_file)
         self._model.save_weights(self._filename)
 
     @staticmethod

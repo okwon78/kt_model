@@ -7,9 +7,9 @@ from mlp import MLPModel
 from db_manager import DBManager
 
 
-def train_proc(epochs, eval):
+def train_proc(epochs, eval, dl_id):
     model = MLPModel()
-    model.train(epochs, eval)
+    model.train(epochs, eval, dl_id)
 
 
 def serv_proc():
@@ -36,15 +36,16 @@ def get_api_server(db_client):
     def train():
         logging.debug("train request")
 
-        epochs = request.json['epoch']
-        eval = request.json['eval']
+        epochs = request.json['EPOCHS']
+        eval = request.json['EVAL']
+        dl_id = request.json['DL_ID']
 
         global train_process
 
         try:
             if train_process is not None and train_process.is_alive():
                 train_process.terminate()
-            train_process = Process(target=train_proc, args=(int(epochs), int(eval)))
+            train_process = Process(target=train_proc, args=(int(epochs), int(eval), int(dl_id)))
             train_process.start()
 
             response = {
