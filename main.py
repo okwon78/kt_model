@@ -1,5 +1,8 @@
+import os
 from multiprocessing import Process
 from os import path
+from pathlib import Path
+
 from flask import Flask, jsonify, request
 import logging
 
@@ -32,6 +35,39 @@ def get_api_server(db_client):
         'version': version
     }
 
+    def stop_training():
+        global train_process
+
+        if train_process is not None and train_process.is_alive():
+            train_process.terminate()
+
+    def stop_serving():
+        global serv_process
+
+        if serv_process is not None and serv_process.is_alive():
+            serv_process.terminate()
+
+    @app.route("/reset", methods=['POST', 'GET'])
+    def reset():
+        stop_training()
+
+        filename = 'model.h5'
+        weights_file = Path(filename)
+        if weights_file.exists():
+            os.remove(weights_file)
+
+        response = {
+            'status': 1,
+            'message': 'reset successful'
+        }
+
+        return jsonify(response)
+
+    @app.route("/stop", methods=['POST', 'GET'])
+    def stop():
+        stop_training()
+        stop_serving()
+
     @app.route("/train", methods=['POST'])
     def train():
         logging.debug("train request")
@@ -43,8 +79,7 @@ def get_api_server(db_client):
         global train_process
 
         try:
-            if train_process is not None and train_process.is_alive():
-                train_process.terminate()
+            stop_training()
             train_process = Process(target=train_proc, args=(int(epochs), int(eval), int(dl_id)))
             train_process.start()
 
@@ -85,8 +120,7 @@ def get_api_server(db_client):
         global serv_process
 
         try:
-            if serv_process is not None and serv_process.is_alive():
-                serv_process.terminate()
+            stop_serving()
             serv_process = Process(target=serv_proc, args=(1000, 100))
             serv_process.start()
 

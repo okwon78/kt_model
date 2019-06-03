@@ -1,6 +1,5 @@
 import datetime
 
-
 import numpy as np
 import json
 import os
@@ -189,7 +188,7 @@ class MLPModel:
     def save_weight(self):
         weights_file = Path(self._filename)
         if weights_file.exists():
-            os.remove(weights_file)
+            os.remove(self._filename)
         self._model.save_weights(self._filename)
 
     @staticmethod
