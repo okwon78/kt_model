@@ -1,12 +1,42 @@
 import pymssql
 import numpy as np
-import os
+from time import gmtime, strftime
 
 
 class Record:
     def __init__(self, data, label):
         self.data = data
         self.label = label
+
+
+def to_array_for_train(row):
+    input = list()
+    input.append(row[0])
+    input.append(row[1])
+    input.append(row[2])
+    input.append(row[3])
+    input.append(row[4])
+    input.append(0 if row[5] is None else 0)
+    input.append(row[6])
+    if row[7] is True:
+        label = 1
+    else:
+        label = 0
+
+    return np.array(input), label
+
+
+def to_array_for_serv(row):
+    input = list()
+    input.append(row[0])
+    input.append(row[1])
+    input.append(row[2])
+    input.append(row[3])
+    input.append(row[4])
+    input.append(0 if row[5] is None else 0)
+    input.append(row[6])
+
+    return np.array(input)
 
 
 class DBManager:
@@ -28,11 +58,13 @@ class DBManager:
 
         self._x_validation = None
         self._y_validation = None
+        self._dl_id = 0
+        self._dl_name = ""
 
     def close(self):
         self._conn.close()
 
-    def init(self, dl_id):
+    def init(self, dl_id, dl_name):
 
         cursor = self._cursor
 
@@ -48,31 +80,26 @@ class DBManager:
 
         self._x_validation = None  # np.ones(shape=(self._train_min - 1, 7), dtype=np.float32)
         self._y_validation = None  # np.ones(shape=(self._train_min - 1, 1), dtype=np.float32)
+        self._dl_id = dl_id
+        self._dl_name = dl_name
 
     def get_steps(self, batch_size):
         return int(self._total / batch_size)
+
+    def get_total(self):
+        return self._total
+
+    def serv_min_index(self):
+        return self._min
+
+    def serv_max_index(self):
+        return self._max
 
     def train_min_index(self):
         return self._train_min
 
     def train_max_index(self):
         return self._train_max
-
-    def to_array(self, row):
-        input = list()
-        input.append(row[0])
-        input.append(row[1])
-        input.append(row[2])
-        input.append(row[3])
-        input.append(row[4])
-        input.append(0 if row[5] is None else 0)
-        input.append(row[6])
-        if row[7] is True:
-            label = 1
-        else:
-            label = 0
-
-        return np.array(input), label
 
     def validation_data(self):
         cursor = self._cursor
@@ -82,13 +109,14 @@ class DBManager:
             try:
 
                 cursor.execute(
-                    f"SELECT TEMPERATURE,HUMIDITY,RAIN,SNOW,VISIBILITY,TIDE,WAVE_HEIGHT,LABELING FROM DL_ALARM WHERE DL_HIST_ID > {self._min} AND DL_HIST_ID < {self._train_min}")
+                    f"SELECT TEMPERATURE,HUMIDITY,RAIN,SNOW,VISIBILITY,TIDE,WAVE_HEIGHT,LABELING FROM DL_ALARM "
+                    f"WHERE DL_HIST_ID > {self._min} AND DL_HIST_ID < {self._train_min} AND DL_ID={self._dl_id}")
                 rows = cursor.fetchall()
                 self._x_validation = np.ones(shape=(len(rows), 7))
                 self._y_validation = np.ones(shape=(len(rows), 1))
 
                 for idx, row in enumerate(rows):
-                    data, label = self.to_array(row)
+                    data, label = to_array_for_train(row)
                     self._x_validation[idx] = data
                     self._y_validation[idx] = label
                     # print(row)
@@ -108,13 +136,14 @@ class DBManager:
         else:
             try:
                 cursor.execute(
-                    f"SELECT TEMPERATURE,HUMIDITY,RAIN,SNOW,VISIBILITY,TIDE,WAVE_HEIGHT,LABELING FROM DL_ALARM WHERE DL_HIST_ID = {index}")
+                    f"SELECT TEMPERATURE,HUMIDITY,RAIN,SNOW,VISIBILITY,TIDE,WAVE_HEIGHT,LABELING FROM DL_ALARM "
+                    f"WHERE DL_HIST_ID = {index} AND DL_ID={self._dl_id}")
                 row = cursor.fetchone()
 
                 if row is None:
                     return None, None
 
-                data, label = self.to_array(row)
+                data, label = to_array_for_train(row)
                 self._cache[index] = Record(data, label)
                 # print(row)
                 # print(data, label)
@@ -124,12 +153,35 @@ class DBManager:
 
             return data, label
 
-    def set_dl_info_update(self, dl_id, epoch):
+    def get_serv_data(self, index):
         cursor = self._cursor
-        cursor.execute(f"exec RMOSREPORT_DL_UPD_DLINFO_COUNT {dl_id}, {epoch}")
+        cursor.execute(
+            f"SELECT TEMPERATURE,HUMIDITY,RAIN,SNOW,VISIBILITY,TIDE,WAVE_HEIGHT FROM DL_ALARM "
+            f"WHERE DL_HIST_ID = {index} AND DL_ID={self._dl_id}")
+        row = cursor.fetchone()
+
+        if row is None:
+            return None
+        else:
+            return to_array_for_serv(row)
+
+    def update_serv_result(self, index, result):
+        cursor = self._cursor
+        cursor.execute(f"UPDATE DL_ALARM SET RESULT={result} WHERE DL_HIST_ID={index} AND DL_ID={self._dl_id}")
         self._conn.commit()
 
-    def set_dl_info_complete(self, dl_id, epoch):
+    def set_state_update(self, progress, status):
         cursor = self._cursor
-        cursor.execute(f"exec RMOSREPORT_DL_UPD_DLINFO_STATUS {dl_id}, {epoch}")
+        cursor.execute(f"SELECT * FROM DL_INFO WHERE DL_ID={self._dl_id}")
+        row = cursor.fetchone()
+
+        # current_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+
+        if row is None:
+            cursor.execute(f"INSERT INTO DL_INFO (DL_ID, DL_NAME, DL_STATUS, DL_COUNT, SYS_CREATE_DT) "
+                           f"VALUES ({self._dl_id}, '{self._dl_name}', {status}, {progress}, GETDATE())")
+        else:
+            cursor.execute(f"UPDATE DL_INFO SET DL_STATUS={status}, DL_COUNT={progress}, SYS_UPDATE_DT=GETDATE() "
+                           f"WHERE DL_ID={self._dl_id}")
+
         self._conn.commit()

@@ -22,7 +22,7 @@ def _y_pred(y_true, y_pred):
 
 
 def _c1(y_true, y_pred):
-    c1 = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    c1 = y_true * y_pred
     return c1
 
 
@@ -74,9 +74,9 @@ def recall(y_true, y_pred):
 
 class MLPModel:
 
-    def __init__(self, train_new=True, filename='model.h5', batch_size=20, epochs=200, verbose=0):
+    def __init__(self, train_new=True, batch_size=20, epochs=200, verbose=0):
 
-        self._filename = filename
+        self._check_point = "model_weight/cp.ckpt"
         self._batch_size = batch_size
         self._epoches = epochs
         self._verbose = verbose
@@ -89,12 +89,12 @@ class MLPModel:
         self._model.compile(loss='binary_crossentropy', optimizer='adam',
                             metrics=['accuracy', f1_score, recall, _c1, _c2, _c3, _y_true, _y_pred])
 
-        if train_new:
-            self.load_weight()
+        self._cp_callback = keras.callbacks.ModelCheckpoint(self._check_point, save_weights_only=True, verbose=1)
+        self._training_callback = TrainingCallback('./logs')
 
-    def __sample_generator(self, batch_size, dl_id):
+    def __sample_generator(self, batch_size, dl_id, dl_name):
         dbManager = DBManager()
-        dbManager.init(dl_id)
+        dbManager.init(dl_id, dl_name)
 
         while True:
             x_batch = np.ones(shape=(batch_size, 7))
@@ -126,70 +126,107 @@ class MLPModel:
 
             yield x_batch, y_batch
 
-    def train(self, epochs=100, eval=10, dl_id=0):
+    def train(self, epochs=100, eval=10, dl_id=0, dl_name=""):
         # train_start_timestamp = datetime.datetime.now()
         try:
             batch_size = 100
             dbManager = DBManager()
-            dbManager.init(dl_id)
+            dbManager.init(dl_id, dl_name)
 
             steps_per_epoch = dbManager.get_steps(batch_size)
 
             print("batch size: ", batch_size)
             print("steps_per_epoch: ", steps_per_epoch)
 
-            trainingCallback = TrainingCallback('./logs')
             x_test, y_test = dbManager.validation_data()
 
+            next_step = int(epochs / min(100, epochs))
+            count = 0
+            progress = 0
+            dbManager.set_state_update(progress, 1)
+
             for i in range(epochs):
-                generator = self.__sample_generator(batch_size, dl_id)
+                self.load_weight()
+                generator = self.__sample_generator(batch_size, dl_id, dl_name)
                 _ = self._model.fit_generator(generator,
-                                              steps_per_epoch=5,
+                                              steps_per_epoch=3,  # steps_per_epoch,
                                               epochs=1,
                                               verbose=0,
                                               workers=1,
                                               use_multiprocessing=False,
-                                              callbacks=[trainingCallback])
+                                              callbacks=[self._training_callback, self._cp_callback])
 
                 print(f"[train {i}] loss: ", _.history['loss'], "accuracy: ", _.history['accuracy'], "f1_score",
                       _.history['f1_score'], "recall", _.history['recall'], 'c1:', _.history['_c1'], 'c2:',
                       _.history['_c2'], 'c3:', _.history['_c3'], '_y_pred:', _.history['_y_pred'], '_y_true:',
                       _.history['_y_true'])
 
+                if i > count + next_step:
+                    count += next_step
+                    progress += max(int(100 / epochs), 1)
+                    dbManager.set_state_update(progress, 2)
+
                 if (i % eval) == 0 and i > 0:
                     results = self._model.evaluate(x_test, y_test, batch_size=128)
                     print(f'[eval {i}]', 'loss:', results[0], 'accuracy:', results[1], 'f1_score', results[2], 'recall',
                           results[3])
-                    dbManager.set_dl_info_update(dl_id, i)
                     status = {
                         'epoch': i,
                         'loss': str(results[0]),
                         'acc': str(results[1])
                     }
 
-                    with open('status.json', 'w') as f:
-                        json.dump(status, f)
+                    # self.save_weight()
 
-                    self.save_weight()
-
-            dbManager.set_dl_info_complete(dl_id, i)
+            dbManager.set_state_update(100, 3)
         finally:
-            self.save_weight()
             dbManager.close()
 
-    def serv(self):
-        return  # self._model.predict_classes(data)
+    def serv(self, dl_id=0, dl_name=""):
+        dbManager = DBManager()
+        dbManager.init(dl_id, dl_name)
+
+        total = dbManager.get_total()
+
+        if total == 0:
+            return
+
+        next_step = int(total / min(100, total))
+        count = 0
+        progress = 0
+        dbManager.set_state_update(progress, 1)
+
+        for num, index in enumerate(range(dbManager.serv_min_index(), dbManager.serv_max_index() + 1)):
+
+            if num > count + next_step:
+                count += next_step
+                progress += max(int(100 / total), 1)
+                dbManager.set_state_update(progress, 2)
+
+            data = dbManager.get_serv_data(index)
+
+            if data is None:
+                continue
+
+            result = self._model.predict(np.array([data]))
+            classes = np.round(result[0])
+            prob = result[0]
+            print(f'[{index}]', 'data: ', data, ' result: ', classes, ' prob: ', prob)
+
+            dbManager.update_serv_result(index, int(classes))
+
+        dbManager.set_state_update(100, 3)
 
     def load_weight(self):
-        weights_file = Path(self._filename)
+        weights_file = Path(self._check_point)
         if weights_file.exists():
-            self._model.load_weights(self._filename)
+            self._model.load_weights(self._check_point)
 
-    def save_weight(self):
-        weights_file = Path(self._filename)
-        if weights_file.exists():
-            os.remove(self._filename)
-        self._model.save_weights(self._filename)
+    # def save_weight(self):
+    #     weights_file = Path(self._filename)
+    #     if weights_file.exists():
+    #         os.remove(self._filename)
+    #     self._model.save_weights(self._filename)
 
     @staticmethod
     def load_status():

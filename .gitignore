@@ -1,10 +1,8 @@
 .vscode/
 .idea/
 *.pyc
-model/log/
-model/data/
-model/nohup.out
-model/models/
+model/
+model_weight/
 *.h5
 *.json
 *.log

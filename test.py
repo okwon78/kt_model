@@ -1,3 +1,4 @@
 import romi
 
-print(romi.joke())
+for i in range(1, 5):
+    print(i)

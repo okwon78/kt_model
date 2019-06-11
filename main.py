@@ -1,4 +1,5 @@
 import os
+import shutil
 from multiprocessing import Process
 from os import path
 from pathlib import Path
@@ -10,14 +11,14 @@ from mlp import MLPModel
 from db_manager import DBManager
 
 
-def train_proc(epochs, eval, dl_id):
+def train_proc(epochs, eval, dl_id, dl_name):
     model = MLPModel()
-    model.train(epochs, eval, dl_id)
+    model.train(epochs, eval, dl_id, dl_name)
 
 
-def serv_proc():
+def serv_proc(dl_id, dl_name):
     model = MLPModel()
-    model.serv()
+    model.serv(dl_id, dl_name)
     pass
 
 
@@ -51,10 +52,10 @@ def get_api_server(db_client):
     def reset():
         stop_training()
 
-        filename = 'model.h5'
-        weights_file = Path(filename)
-        if weights_file.exists():
-            os.remove(weights_file)
+        check_point = "./model_weight"
+
+        if os.path.exists(check_point):
+            shutil.rmtree(check_point)
 
         response = {
             'status': 1,
@@ -75,12 +76,13 @@ def get_api_server(db_client):
         epochs = request.json['EPOCHS']
         eval = request.json['EVAL']
         dl_id = request.json['DL_ID']
+        dl_name = request.json['DL_NAME']
 
         global train_process
 
         try:
             stop_training()
-            train_process = Process(target=train_proc, args=(int(epochs), int(eval), int(dl_id)))
+            train_process = Process(target=train_proc, args=[int(epochs), int(eval), int(dl_id), dl_name])
             train_process.start()
 
             response = {
@@ -113,15 +115,18 @@ def get_api_server(db_client):
             logging.debug(response['acc'])
         return jsonify(response)
 
-    @app.route("/serv")
+    @app.route("/serv", methods=['POST'])
     def serv():
         logging.debug("serv request")
+
+        dl_id = request.json['DL_ID']
+        dl_name = request.json['DL_NAME']
 
         global serv_process
 
         try:
             stop_serving()
-            serv_process = Process(target=serv_proc, args=(1000, 100))
+            serv_process = Process(target=serv_proc, args=[int(dl_id), dl_name])
             serv_process.start()
 
             response = {
