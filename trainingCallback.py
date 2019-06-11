@@ -1,5 +1,6 @@
 import shutil
 import tensorflow as tf
+import os
 from tensorflow import keras
 
 
@@ -9,7 +10,9 @@ class TrainingCallback(keras.callbacks.Callback):
         self.params = None
         self.iterCount = 0
 
-        shutil.rmtree(log_dir)
+        if os.path.exists(log_dir):
+            shutil.rmtree(log_dir)
+
         self.train_summary_writer = tf.summary.create_file_writer(log_dir)
 
     def set_params(self, params):
