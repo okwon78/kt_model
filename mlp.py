@@ -24,21 +24,6 @@ def _y_pred(y_true, y_pred):
     return y_pred
 
 
-def _c1(y_true, y_pred):
-    c1 = y_true * y_pred
-    return c1
-
-
-def _c2(y_true, y_pred):
-    c2 = K.sum(K.round(K.clip(y_pred, 0, 1)))
-    return c2
-
-
-def _c3(y_true, y_pred):
-    c3 = K.sum(K.round(K.clip(y_true, 0, 1)))
-    return c3
-
-
 def f1_score(y_true, y_pred):
     # Count positive samples.
     c1 = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
@@ -91,7 +76,7 @@ class MLPModel:
         self._model.add(Dense(5, input_dim=5, kernel_initializer='normal', activation='relu'))
         self._model.add(Dense(1, input_dim=5, kernel_initializer='normal', activation='sigmoid'))
         self._model.compile(loss='binary_crossentropy', optimizer='adam',
-                            metrics=['accuracy', f1_score, recall, _c1, _c2, _c3, _y_true, _y_pred])
+                            metrics=['accuracy', f1_score, recall, _y_true, _y_pred])
 
         # self._cp_callback = keras.callbacks.ModelCheckpoint(self._check_point, save_weights_only=True, verbose=1)
         self._training_callback = TrainingCallback('./logs')
@@ -113,6 +98,7 @@ class MLPModel:
             while True:
                 dl_hist_id = np.random.randint(low=dbManager.train_min_index(), high=dbManager.train_max_index())
                 history, label = dbManager.get_train_data(dl_hist_id)
+
                 # print(history, label)
 
                 if history is None:
@@ -163,8 +149,7 @@ class MLPModel:
                                               callbacks=[self._training_callback])
 
                 print(f"[train {i}] loss: ", _.history['loss'], "accuracy: ", _.history['acc'], "f1_score",
-                      _.history['f1_score'], "recall", _.history['recall'], 'c1:', _.history['_c1'], 'c2:',
-                      _.history['_c2'], 'c3:', _.history['_c3'], '_y_pred:', _.history['_y_pred'], '_y_true:',
+                      _.history['f1_score'], "recall", '_y_pred:', _.history['_y_pred'], '_y_true:',
                       _.history['_y_true'])
 
                 if i > count + next_step:
@@ -184,8 +169,6 @@ class MLPModel:
                         'loss': str(results[0]),
                         'acc': str(results[1])
                     }
-
-
 
             dbManager.set_state_update(100, 3)
         finally:
