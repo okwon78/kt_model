@@ -80,6 +80,7 @@ class MLPModel:
     def __init__(self, train_new=True, batch_size=20, epochs=200, verbose=0):
 
         self._check_point = "model_weight/cp.ckpt"
+        self._filename = self._check_point
         self._batch_size = batch_size
         self._epoches = epochs
         self._verbose = verbose
@@ -92,8 +93,10 @@ class MLPModel:
         self._model.compile(loss='binary_crossentropy', optimizer='adam',
                             metrics=['accuracy', f1_score, recall, _c1, _c2, _c3, _y_true, _y_pred])
 
-        self._cp_callback = keras.callbacks.ModelCheckpoint(self._check_point, save_weights_only=True, verbose=1)
+        # self._cp_callback = keras.callbacks.ModelCheckpoint(self._check_point, save_weights_only=True, verbose=1)
         self._training_callback = TrainingCallback('./logs')
+
+        self.load_weight()
 
     def __sample_generator(self, batch_size, dl_id, dl_name):
         dbManager = DBManager()
@@ -157,7 +160,7 @@ class MLPModel:
                                               verbose=0,
                                               workers=1,
                                               use_multiprocessing=False,
-                                              callbacks=[self._training_callback, self._cp_callback])
+                                              callbacks=[self._training_callback])
 
                 print(f"[train {i}] loss: ", _.history['loss'], "accuracy: ", _.history['acc'], "f1_score",
                       _.history['f1_score'], "recall", _.history['recall'], 'c1:', _.history['_c1'], 'c2:',
@@ -170,6 +173,9 @@ class MLPModel:
                     dbManager.set_state_update(progress, 2)
 
                 if (i % eval) == 0 and i > 0:
+                    self.save_weight()
+                    self.load_weight()
+
                     results = self._model.evaluate(x_test, y_test, batch_size=128)
                     print(f'[eval {i}]', 'loss:', results[0], 'accuracy:', results[1], 'f1_score', results[2], 'recall',
                           results[3])
@@ -179,7 +185,7 @@ class MLPModel:
                         'acc': str(results[1])
                     }
 
-                    # self.save_weight()
+
 
             dbManager.set_state_update(100, 3)
         finally:
@@ -225,11 +231,11 @@ class MLPModel:
         if weights_file.exists():
             self._model.load_weights(self._check_point)
 
-    # def save_weight(self):
-    #     weights_file = Path(self._filename)
-    #     if weights_file.exists():
-    #         os.remove(self._filename)
-    #     self._model.save_weights(self._filename)
+    def save_weight(self):
+        weights_file = Path(self._filename)
+        if weights_file.exists():
+            os.remove(self._filename)
+        self._model.save_weights(self._filename)
 
     @staticmethod
     def load_status():
