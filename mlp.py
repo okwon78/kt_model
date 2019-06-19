@@ -3,6 +3,7 @@ import datetime
 import numpy as np
 import json
 import os
+import tensorflow as tf
 
 from pathlib import Path
 from tensorflow import keras
@@ -11,6 +12,8 @@ from tensorflow.python.keras.layers import Dense
 from db_manager import DBManager
 from trainingCallback import TrainingCallback
 import tensorflow.keras.backend as K
+
+print('tf.__version__ ', tf.__version__)
 
 
 def _y_true(y_true, y_pred):
@@ -156,7 +159,7 @@ class MLPModel:
                                               use_multiprocessing=False,
                                               callbacks=[self._training_callback, self._cp_callback])
 
-                print(f"[train {i}] loss: ", _.history['loss'], "accuracy: ", _.history['accuracy'], "f1_score",
+                print(f"[train {i}] loss: ", _.history['loss'], "accuracy: ", _.history['acc'], "f1_score",
                       _.history['f1_score'], "recall", _.history['recall'], 'c1:', _.history['_c1'], 'c2:',
                       _.history['_c2'], 'c3:', _.history['_c3'], '_y_pred:', _.history['_y_pred'], '_y_true:',
                       _.history['_y_true'])

@@ -2,13 +2,14 @@ import os
 import shutil
 from multiprocessing import Process
 from os import path
-from pathlib import Path
 
 from flask import Flask, jsonify, request
 import logging
 
 from mlp import MLPModel
 from db_manager import DBManager
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 def train_proc(epochs, eval, dl_id, dl_name):

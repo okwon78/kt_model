@@ -1,4 +1,4 @@
-import romi
+import tensorflow as tf
 
-for i in range(1, 5):
-    print(i)
+
+print(tf.__version__)

@@ -13,7 +13,12 @@ class TrainingCallback(keras.callbacks.Callback):
         if os.path.exists(log_dir):
             shutil.rmtree(log_dir)
 
-        self.train_summary_writer = tf.summary.create_file_writer(log_dir)
+        self.version = tf.__version__
+
+        if '1.13' in self.version:
+            self.train_summary_writer = tf.summary.FileWriter(log_dir)
+        else:
+            self.train_summary_writer = tf.summary.create_file_writer(log_dir)
 
     def set_params(self, params):
         self.params = params
@@ -35,9 +40,15 @@ class TrainingCallback(keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs={}):
         self.iterCount += 1
-        with self.train_summary_writer.as_default():
-            tf.summary.scalar('loss', logs['loss'], step=self.iterCount)
-            tf.summary.scalar('acc', logs['accuracy'], step=self.iterCount)
+
+        # if '1.13' in self.version:
+        #     tf.summary.scalar('loss', logs['loss'], step=self.iterCount)
+        #     tf.summary.scalar('acc', logs['accuracy'], step=self.iterCount)
+        # else:
+        #     with self.train_summary_writer.as_default():
+        #         tf.summary.scalar('loss', logs['loss'], step=self.iterCount)
+        #         tf.summary.scalar('acc', logs['accuracy'], step=self.iterCount)
+
         # print(f"\ton_epoch_end {self._iterCount}")
         return
 
