@@ -1,14 +1,17 @@
 import shutil
 import tensorflow as tf
 import os
+
+from pathlib import Path
+
+from numpy import nan
 from tensorflow import keras
 
 
 class TrainingCallback(keras.callbacks.Callback):
-    def __init__(self, log_dir):
-        self.model = None
-        self.params = None
-        self.iterCount = 0
+    def __init__(self, model, check_point, log_dir):
+        self.model = model
+        self.check_point = check_point
 
         if os.path.exists(log_dir):
             shutil.rmtree(log_dir)
@@ -20,36 +23,49 @@ class TrainingCallback(keras.callbacks.Callback):
         else:
             self.train_summary_writer = tf.summary.create_file_writer(log_dir)
 
-    def set_params(self, params):
-        self.params = params
+        self.dbManager = None
+        self.next_step = 0
+        self.count = 0
+        self.progress = 0
+        self.total_epochs = 1
 
-    def set_model(self, model):
-        self.model = model
+    def set_db_manager(self, dbManager, total_epochs):
+        self.dbManager = dbManager
+        self.next_step = int(total_epochs / min(100, total_epochs))
+        self.total_epochs = total_epochs
 
     def on_train_begin(self, batch, logs=None):
-        # print(f"on_train_begin {batch}")
+        print(f"[train begin]")
+        self.load_weight()
+        self.dbManager.set_state_update(self.progress, 1)
         return
 
     def on_train_end(self, batch, logs=None):
-        # print(f"on_train_end {batch}")
+        print(f"[train end][{batch}] {logs}")
+
+        self.save_weight()
+        self.dbManager.set_state_update(100, 3)
         return
 
     def on_epoch_begin(self, epoch, logs={}):
-        # print(f"\ton_epoch_begin {epoch}")
+        # print(f"[epoch begin][{epoch}] {logs}")
+        self.load_weight()
         return
 
     def on_epoch_end(self, epoch, logs={}):
-        self.iterCount += 1
+        print(f"[epoch end][{epoch}] {logs}")
 
-        # if '1.13' in self.version:
-        #     tf.summary.scalar('loss', logs['loss'], step=self.iterCount)
-        #     tf.summary.scalar('acc', logs['accuracy'], step=self.iterCount)
-        # else:
-        #     with self.train_summary_writer.as_default():
-        #         tf.summary.scalar('loss', logs['loss'], step=self.iterCount)
-        #         tf.summary.scalar('acc', logs['accuracy'], step=self.iterCount)
+        if epoch > self.count + self.next_step:
+            self.count += self.next_step
+            self.progress += max(int(100 / self.total_epochs), 1)
+            self.dbManager.set_state_update(self.progress, 2)
+            print(f"[progress] count[{self.count}] progress[{self.progress}]")
+        self.save_weight()
 
-        # print(f"\ton_epoch_end {self._iterCount}")
+    def print_weights(self):
+        # for layer in self.model.layers:
+        #     weights = layer.get_weights()
+        #     print(weights)
         return
 
     def on_train_batch_begin(self, batch, logs={}):
@@ -59,3 +75,18 @@ class TrainingCallback(keras.callbacks.Callback):
     def on_train_batch_end(self, batch, logs={}):
         # print(f"\t\ton_train_batch_end {batch}")
         return
+
+    def load_weight(self):
+        weights_file = Path(self.check_point)
+        dirName = os.path.dirname(weights_file)
+        dirPath = Path(dirName)
+
+        if dirPath.exists():
+            print("load_weight")
+            self.print_weights()
+            self.model.load_weights(self.check_point)
+
+    def save_weight(self):
+        print("save_weight")
+        self.print_weights()
+        self.model.save_weights(self.check_point)

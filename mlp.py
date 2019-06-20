@@ -8,6 +8,7 @@ import tensorflow as tf
 from pathlib import Path
 from tensorflow import keras
 from tensorflow.python.keras.layers import Dense
+from tensorflow.python.keras.optimizers import SGD
 
 from db_manager import DBManager
 from trainingCallback import TrainingCallback
@@ -65,58 +66,60 @@ class MLPModel:
     def __init__(self, train_new=True, batch_size=20, epochs=200, verbose=0):
 
         self._check_point = "model_weight/cp.ckpt"
-        self._filename = self._check_point
         self._batch_size = batch_size
         self._epoches = epochs
         self._verbose = verbose
 
+        sgd = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True, clipvalue=0.5)
+
         self._model = keras.models.Sequential()
-        self._model.add(Dense(5, input_dim=7, kernel_initializer='normal', activation='relu'))
-        self._model.add(Dense(5, input_dim=5, kernel_initializer='normal', activation='relu'))
-        self._model.add(Dense(5, input_dim=5, kernel_initializer='normal', activation='relu'))
-        self._model.add(Dense(1, input_dim=5, kernel_initializer='normal', activation='sigmoid'))
-        self._model.compile(loss='binary_crossentropy', optimizer='adam',
+        self._model.add(Dense(3, input_dim=7, kernel_initializer='normal', activation='relu'))
+        self._model.add(Dense(5, input_dim=3, kernel_initializer='normal', activation='relu'))
+        self._model.add(Dense(3, input_dim=5, kernel_initializer='normal', activation='relu'))
+        self._model.add(Dense(1, input_dim=3, kernel_initializer='normal', activation='sigmoid'))
+        self._model.compile(loss='binary_crossentropy', optimizer=sgd,
                             metrics=['accuracy', f1_score, recall, _y_true, _y_pred])
 
-        # self._cp_callback = keras.callbacks.ModelCheckpoint(self._check_point, save_weights_only=True, verbose=1)
-        self._training_callback = TrainingCallback('./logs')
-
-        self.load_weight()
+        self._training_callback = TrainingCallback(self._model, self._check_point, './logs')
 
     def __sample_generator(self, batch_size, dl_id, dl_name):
         dbManager = DBManager()
         dbManager.init(dl_id, dl_name)
 
         while True:
-            x_batch = np.ones(shape=(batch_size, 7))
-            y_batch = np.ones(shape=(batch_size, 1))
+            try:
+                x_batch = np.ones(shape=(batch_size, 7))
+                y_batch = np.ones(shape=(batch_size, 1), dtype=np.int32)
 
-            histories = list()
-            labels = list()
+                histories = list()
+                labels = list()
 
-            index = 0
-            while True:
-                dl_hist_id = np.random.randint(low=dbManager.train_min_index(), high=dbManager.train_max_index())
-                history, label = dbManager.get_train_data(dl_hist_id)
+                index = 0
+                while True:
+                    dl_hist_id = np.random.randint(low=dbManager.train_min_index(), high=dbManager.train_max_index())
+                    history, label = dbManager.get_train_data(dl_hist_id)
 
-                # print(history, label)
+                    # print(history, label)
 
-                if history is None:
-                    continue
+                    if history is None:
+                        continue
 
-                histories.append(history)
-                labels.append(label)
+                    histories.append(history)
+                    labels.append(label)
 
-                index += 1
+                    index += 1
 
-                if batch_size == index:
-                    break
+                    if batch_size == index:
+                        break
 
-            for idx, histroy in enumerate(histories):
-                x_batch[idx] = history
-                y_batch[idx] = labels[idx]
+                for idx, histroy in enumerate(histories):
+                    x_batch[idx] = history
+                    y_batch[idx] = labels[idx]
 
-            yield x_batch, y_batch
+                yield x_batch, y_batch
+            except Exception as e:
+                print("Exception: ", e)
+                continue
 
     def train(self, epochs=100, eval=10, dl_id=0, dl_name=""):
         # train_start_timestamp = datetime.datetime.now()
@@ -132,45 +135,17 @@ class MLPModel:
 
             x_test, y_test = dbManager.validation_data()
 
-            next_step = int(epochs / min(100, epochs))
-            count = 0
-            progress = 0
-            dbManager.set_state_update(progress, 1)
+            self._training_callback.set_db_manager(dbManager, epochs)
 
-            for i in range(epochs):
-                self.load_weight()
-                generator = self.__sample_generator(batch_size, dl_id, dl_name)
-                _ = self._model.fit_generator(generator,
-                                              steps_per_epoch=3,  # steps_per_epoch,
-                                              epochs=1,
-                                              verbose=0,
-                                              workers=1,
-                                              use_multiprocessing=False,
-                                              callbacks=[self._training_callback])
+            generator = self.__sample_generator(batch_size, dl_id, dl_name)
+            self._model.fit_generator(generator,
+                                      steps_per_epoch=steps_per_epoch,
+                                      epochs=epochs,
+                                      verbose=0,
+                                      workers=1,
+                                      use_multiprocessing=False,
+                                      callbacks=[self._training_callback])
 
-                print(f"[train {i}] loss: ", _.history['loss'], "accuracy: ", _.history['acc'], "f1_score",
-                      _.history['f1_score'], "recall", '_y_pred:', _.history['_y_pred'], '_y_true:',
-                      _.history['_y_true'])
-
-                if i > count + next_step:
-                    count += next_step
-                    progress += max(int(100 / epochs), 1)
-                    dbManager.set_state_update(progress, 2)
-
-                if (i % eval) == 0 and i > 0:
-                    self.save_weight()
-                    self.load_weight()
-
-                    results = self._model.evaluate(x_test, y_test, batch_size=128)
-                    print(f'[eval {i}]', 'loss:', results[0], 'accuracy:', results[1], 'f1_score', results[2], 'recall',
-                          results[3])
-                    status = {
-                        'epoch': i,
-                        'loss': str(results[0]),
-                        'acc': str(results[1])
-                    }
-
-            dbManager.set_state_update(100, 3)
         finally:
             dbManager.close()
 
@@ -208,17 +183,6 @@ class MLPModel:
             dbManager.update_serv_result(index, int(classes))
 
         dbManager.set_state_update(100, 3)
-
-    def load_weight(self):
-        weights_file = Path(self._check_point)
-        if weights_file.exists():
-            self._model.load_weights(self._check_point)
-
-    def save_weight(self):
-        weights_file = Path(self._filename)
-        if weights_file.exists():
-            os.remove(self._filename)
-        self._model.save_weights(self._filename)
 
     @staticmethod
     def load_status():
