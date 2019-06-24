@@ -41,7 +41,7 @@ class TrainingCallback(keras.callbacks.Callback):
         return
 
     def on_train_end(self, batch, logs=None):
-        print(f"[train end][{batch}] {logs}")
+        print(f"[train end]")
 
         self.save_weight()
         self.dbManager.set_state_update(100, 3)
