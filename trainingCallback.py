@@ -4,7 +4,7 @@ import os
 
 from pathlib import Path
 
-from numpy import nan
+import math
 from tensorflow import keras
 
 
@@ -53,6 +53,10 @@ class TrainingCallback(keras.callbacks.Callback):
         return
 
     def on_epoch_end(self, epoch, logs={}):
+
+        if math.isnan(logs['_y_pred']):
+            print('nan occur')
+
         print(f"[epoch end][{epoch}] {logs}")
 
         if epoch > self.count + self.next_step:
@@ -82,11 +86,11 @@ class TrainingCallback(keras.callbacks.Callback):
         dirPath = Path(dirName)
 
         if dirPath.exists():
-            print("load_weight")
+            # print("load_weight")
             self.print_weights()
             self.model.load_weights(self.check_point)
 
     def save_weight(self):
-        print("save_weight")
+        # print("save_weight")
         self.print_weights()
         self.model.save_weights(self.check_point)

@@ -99,8 +99,6 @@ class MLPModel:
                     dl_hist_id = np.random.randint(low=dbManager.train_min_index(), high=dbManager.train_max_index())
                     history, label = dbManager.get_train_data(dl_hist_id)
 
-                    # print(history, label)
-
                     if history is None:
                         continue
 
@@ -112,10 +110,11 @@ class MLPModel:
                     if batch_size == index:
                         break
 
-                for idx, histroy in enumerate(histories):
-                    x_batch[idx] = history
+                for idx, elem in enumerate(histories):
+                    x_batch[idx] = elem
                     y_batch[idx] = labels[idx]
 
+                # print('x_batch: ', x_batch)
                 yield x_batch, y_batch
             except Exception as e:
                 print("Exception: ", e)

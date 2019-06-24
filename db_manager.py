@@ -144,6 +144,14 @@ class DBManager:
                     return None, None
 
                 data, label = to_array_for_train(row)
+
+                for i, num in enumerate(data):
+                    if num == None:
+                        data[i] = 0
+
+                if label == None:
+                    label = 0
+
                 self._cache[index] = Record(data, label)
                 # print(row)
                 # print(data, label)

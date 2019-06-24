@@ -9,7 +9,7 @@ import logging
 from mlp import MLPModel
 from db_manager import DBManager
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
 def train_proc(epochs, eval, dl_id, dl_name):
