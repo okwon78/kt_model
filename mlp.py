@@ -1,12 +1,13 @@
 import datetime
+import shutil
 
 import numpy as np
 import json
-import os
+
 import tensorflow as tf
 
-from pathlib import Path
 from tensorflow import keras
+from tensorflow.python.keras.callbacks import TensorBoard
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.optimizers import SGD
 
@@ -136,14 +137,30 @@ class MLPModel:
 
             self._training_callback.set_db_manager(dbManager, epochs)
 
+            log_dir = "./logs"
+
+            try:
+                shutil.rmtree(log_dir)
+            except OSError as e:
+                print("Error: %s - %s." % (e.filename, e.strerror))
+
+            tensorboard_callback = TensorBoard(log_dir=log_dir,
+                                               histogram_freq=0,
+                                               batch_size=batch_size,
+                                               write_graph=True,
+                                               write_grads=False,
+                                               write_images=False, embeddings_freq=0, embeddings_layer_names=None,
+                                               embeddings_metadata=None,
+                                               embeddings_data=None, update_freq='epoch')
+
             generator = self.__sample_generator(batch_size, dl_id, dl_name)
             self._model.fit_generator(generator,
-                                      steps_per_epoch=steps_per_epoch,
+                                      steps_per_epoch=5,
                                       epochs=epochs,
                                       verbose=0,
                                       workers=1,
                                       use_multiprocessing=False,
-                                      callbacks=[self._training_callback])
+                                      callbacks=[self._training_callback, tensorboard_callback])
 
         finally:
             dbManager.close()
