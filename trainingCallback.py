@@ -18,11 +18,6 @@ class TrainingCallback(keras.callbacks.Callback):
 
         self.version = tf.__version__
 
-        if '1.13' in self.version:
-            self.train_summary_writer = tf.summary.FileWriter(log_dir)
-        else:
-            self.train_summary_writer = tf.summary.create_file_writer(log_dir)
-
         self.dbManager = None
         self.next_step = 0
         self.count = 0

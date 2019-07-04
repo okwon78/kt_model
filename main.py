@@ -118,6 +118,7 @@ def get_api_server(db_client):
 
     @app.route("/serv", methods=['POST'])
     def serv():
+        print('serv')
         logging.debug("serv request")
 
         dl_id = request.json['DL_ID']

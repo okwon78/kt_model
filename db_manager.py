@@ -41,12 +41,12 @@ def to_array_for_serv(row):
 
 class DBManager:
 
-    def __init__(self, server='sql16ssd-003.localnet.kr', db='lime425_rmos', user='lime425_rmos', pwd='rmos0425'):
+    def __init__(self, server='10.240.10.24', db='rmoshist', user='sa', pwd='102938'):
         self._server = server
         self._db = db
         self._user = user
         self._pwd = pwd
-        self._conn = pymssql.connect(self._server, self._user, self._pwd, self._db)
+        self._conn = pymssql.connect(host=self._server, port=6387, user=self._user, password=self._pwd, database=self._db)
         self._cursor = self._conn.cursor()
 
         self._min = 0
@@ -137,7 +137,8 @@ class DBManager:
             try:
                 cursor.execute(
                     f"SELECT TEMPERATURE,HUMIDITY,RAIN,SNOW,VISIBILITY,TIDE,WAVE_HEIGHT,LABELING FROM DL_ALARM "
-                    f"WHERE DL_HIST_ID = {index} AND DL_ID={self._dl_id}")
+                    f"WHERE DL_HIST_ID = {index} AND DL_ID in (SELECT DL_ID FROM DL_INFO WHERE DL_TYPE=1 AND "
+                    f"IS_DELETED_YN = 'N')")
                 row = cursor.fetchone()
 
                 if row is None:

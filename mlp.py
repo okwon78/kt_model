@@ -155,7 +155,7 @@ class MLPModel:
 
             generator = self.__sample_generator(batch_size, dl_id, dl_name)
             self._model.fit_generator(generator,
-                                      steps_per_epoch=5,
+                                      steps_per_epoch=steps_per_epoch,
                                       epochs=epochs,
                                       verbose=0,
                                       workers=1,
