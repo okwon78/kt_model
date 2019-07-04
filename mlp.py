@@ -1,4 +1,4 @@
-import datetime
+import os
 import shutil
 
 import numpy as np
@@ -82,6 +82,8 @@ class MLPModel:
                             metrics=['accuracy', f1_score, recall, _y_true, _y_pred])
 
         self._training_callback = TrainingCallback(self._model, self._check_point, './logs')
+        # os.spawnl(os.P_DETACH,
+        #          "/home/rmos/anaconda3/envs/rmos/bin/tensorboard --logdir='/home/rmos/Dev/kt_model/logs' --port=6006")
 
     def __sample_generator(self, batch_size, dl_id, dl_name):
         dbManager = DBManager()
@@ -198,7 +200,7 @@ class MLPModel:
 
             dbManager.update_serv_result(index, int(classes))
 
-        dbManager.set_state_update(100, 3)
+        dbManager.set_state_update(100, 5)
 
     @staticmethod
     def load_status():

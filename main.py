@@ -8,6 +8,8 @@ import logging
 
 from mlp import MLPModel
 from db_manager import DBManager
+import os
+import signal
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -27,6 +29,13 @@ train_process = None
 serv_process = None
 
 
+def check_kill_process(pstring):
+    for line in os.popen("ps ax | grep " + pstring + " | grep -v grep"):
+        fields = line.split()
+        pid = fields[0]
+        os.kill(int(pid), signal.SIGKILL)
+
+
 def get_api_server(db_client):
     app = Flask(__name__)
 
@@ -38,10 +47,14 @@ def get_api_server(db_client):
     }
 
     def stop_training():
+
+        # check_kill_process('tensorboard')
+
         global train_process
 
         if train_process is not None and train_process.is_alive():
             train_process.terminate()
+
 
     def stop_serving():
         global serv_process

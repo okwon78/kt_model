@@ -39,7 +39,7 @@ class TrainingCallback(keras.callbacks.Callback):
         print(f"[train end]")
 
         self.save_weight()
-        self.dbManager.set_state_update(100, 3)
+        self.dbManager.set_state_update(100, 5)
         return
 
     def on_epoch_begin(self, epoch, logs={}):
