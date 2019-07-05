@@ -1,4 +1,6 @@
 import shutil
+import signal
+
 import tensorflow as tf
 import os
 
@@ -6,6 +8,16 @@ from pathlib import Path
 
 import math
 from tensorflow import keras
+
+import subprocess
+import psutil
+
+
+def check_kill_process(name):
+    for line in os.popen("ps ax | grep " + name + " | grep -v grep"):
+        fields = line.split()
+        pid = fields[0]
+        os.kill(int(pid), signal.SIGKILL)
 
 
 class TrainingCallback(keras.callbacks.Callback):
@@ -23,6 +35,7 @@ class TrainingCallback(keras.callbacks.Callback):
         self.count = 0
         self.progress = 0
         self.total_epochs = 1
+        self.tensorboard = None
 
     def set_db_manager(self, dbManager, total_epochs):
         self.dbManager = dbManager
@@ -31,6 +44,13 @@ class TrainingCallback(keras.callbacks.Callback):
 
     def on_train_begin(self, batch, logs=None):
         print(f"[train begin]")
+
+        check_kill_process('tensorboard')
+
+        self.tensorboard = subprocess.Popen(["/Users/amore/anaconda3/envs/tf1.3/bin/tensorboard", "--logdir=/Users/amore/Dev/kt_model/logs"], stdout=subprocess.PIPE)
+        self.tensorboard.stdout.close()
+
+
         self.load_weight()
         self.dbManager.set_state_update(self.progress, 1)
         return
@@ -43,7 +63,6 @@ class TrainingCallback(keras.callbacks.Callback):
         return
 
     def on_epoch_begin(self, epoch, logs={}):
-        # print(f"[epoch begin][{epoch}] {logs}")
         self.load_weight()
         return
 

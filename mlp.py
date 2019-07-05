@@ -135,7 +135,7 @@ class MLPModel:
             print("batch size: ", batch_size)
             print("steps_per_epoch: ", steps_per_epoch)
 
-            x_test, y_test = dbManager.validation_data()
+            # x_test, y_test = dbManager.validation_data()
 
             self._training_callback.set_db_manager(dbManager, epochs)
 
