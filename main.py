@@ -157,7 +157,7 @@ def main():
     model_save_path = path.join(path.dirname(path.abspath(__file__)), 'model_save')
 
     api_server = get_api_server(db_client=DBManager())
-    api_server.run(host='0.0.0.0', debug=False)
+    api_server.run(host='0.0.0.0', debug=True)
 
 
 if __name__ == '__main__':
