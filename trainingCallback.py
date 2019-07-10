@@ -47,7 +47,7 @@ class TrainingCallback(keras.callbacks.Callback):
 
         check_kill_process('tensorboard')
 
-        self.tensorboard = subprocess.Popen(["/Users/amore/anaconda3/envs/tf1.3/bin/tensorboard", "--logdir=/Users/amore/Dev/kt_model/logs"], stdout=subprocess.PIPE)
+        self.tensorboard = subprocess.Popen(["/home/rmos/anaconda3/envs/rmos/bin/tensorboard", "--logdir=/home/rmos/Dev/kt_model/logs"], stdout=subprocess.PIPE)
         self.tensorboard.stdout.close()
 
 
