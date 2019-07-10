@@ -20,6 +20,14 @@ def check_kill_process(name):
         os.kill(int(pid), signal.SIGKILL)
 
 
+def start_tensorboard():
+    tensorboard = subprocess.Popen(
+        ["/home/rmos/anaconda3/envs/rmos/bin/tensorboard", "--logdir=/home/rmos/Dev/kt_model/logs"],
+        stdout=subprocess.PIPE)
+    tensorboard.stdout.close()
+    return tensorboard
+
+
 class TrainingCallback(keras.callbacks.Callback):
     def __init__(self, model, check_point, log_dir):
         self.model = model
@@ -46,11 +54,7 @@ class TrainingCallback(keras.callbacks.Callback):
         print(f"[train begin]")
 
         check_kill_process('tensorboard')
-
-        self.tensorboard = subprocess.Popen(["/home/rmos/anaconda3/envs/rmos/bin/tensorboard", "--logdir=/home/rmos/Dev/kt_model/logs"], stdout=subprocess.PIPE)
-        self.tensorboard.stdout.close()
-
-
+        self.tensorboard = start_tensorboard()
         self.load_weight()
         self.dbManager.set_state_update(self.progress, 1)
         return
